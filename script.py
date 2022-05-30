@@ -1,23 +1,15 @@
 import pandas as pd
-import mysql.connector as sql
+from sqlalchemy import create_engine
 
 # データベース接続
-conn = sql.connect(
-    host='localhost',
-    port='3306',
-    user='root',
-    password='password',
-    database='pandas_task'
-)
-
-# コネクションが切れた時に再接続してくれるよう設定
-conn.ping(reconnect=True)
+engine = create_engine('mysql://root:password@localhost:3306/pandas_task')
 
 # エクセルからデータ抽出
 df = pd.read_excel('data.xlsx')
 
 # DBに登録
-df.to_sql('pings', conn, if_exists='replace')
+with engine.begin() as con:
+    df.to_sql('pings', con=con, if_exists='replace', index=False)
 
 # データベース切断
-conn.close()
+con.close()
