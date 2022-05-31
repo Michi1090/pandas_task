@@ -1,28 +1,52 @@
+import mysql.connector
 import pandas as pd
-from sqlalchemy import create_engine, true
 import subprocess as sub
+import datetime
 
-# データベース接続
-engine = create_engine('mysql://root:password@localhost:3306/pandas_task')
+# DB接続
+conn = mysql.connector.connect(
+    host='localhost',
+    user='root',
+    password='password',
+    database='pandas_task'
+)
+cursor = conn.cursor()
 
 # エクセルからデータ抽出
 df = pd.read_excel('data.xlsx')
 
-# DBに登録〜IPアドレス抽出
-with engine.begin() as con:
-    df.to_sql('pings', con=con, if_exists='replace')
-    ip = pd.read_sql('SELECT ip_address FROM pings', con=con)
+# ping実行〜DB登録
+for i in range(len(df)):
+    # 各データを変数に代入
+    name = df.loc[i, 'name']
+    url = df.loc[i, 'url']
+    ip = df.loc[i, 'ip_address']
+    today = datetime.datetime.today()
+    dt = today.strftime('%Y-%m-%d %X')
 
-    # DBから個別のIPアドレス抽出〜結果をDBへ格納
-    for index, item in ip.iterrows():
-        # 各IPアドレスごとにpingコマンドを実行
-        res = sub.run(['ping', item['ip_address'], '-c', '3', '-W', '1000'],
-                    capture_output=True)
-        print(res.stdout.decode('UTF-8'))
+    # pingコマンド実行
+    res = sub.run(['ping', ip, '-c', '3', '-W', '1000'],
+                  capture_output=True)
+    print(res.stdout.decode('UTF-8'))
 
-        # pingコマンド成功時は0、失敗時はそれ以外を返す
-        if res.returncode == 0:
-            print('成功\n\n')
-        else:
-            print('失敗\n\n')
-        print("--------------------------------------------------------------")
+    # 結果の表示、及び格納
+    if res.returncode == 0:
+        print('成功\n')
+        result = True
+    else:
+        print('失敗\n')
+        result = False
+    print("--------------------------------------------------------------")
+
+    # DB登録
+    cursor.execute(f'''
+                   INSERT INTO pings
+                   (name, url, ip_address, datetime, result)
+                   VALUES ("{name}", "{url}", "{ip}", "{dt}", {result})
+                   '''
+                   )
+    conn.commit()
+
+# DB切断
+cursor.close()
+conn.close()
